@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/app_switch.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     super.key,
     required this.isDark,
@@ -16,18 +17,54 @@ class ProfileScreen extends StatelessWidget {
   final VoidCallback onLogout;
 
   @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  String _userName = 'John Doe';
+  String _userEmail = 'john.doe@example.com';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userName = prefs.getString('user_name');
+    final userEmail = prefs.getString('user_email');
+
+    if (!mounted) return;
+
+    setState(() {
+      _userName = (userName != null && userName.isNotEmpty) ? userName : _userName;
+      _userEmail =
+          (userEmail != null && userEmail.isNotEmpty) ? userEmail : _userEmail;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final fg = isDark ? AppColors.darkForeground : AppColors.lightForeground;
-    final muted =
-        isDark ? AppColors.darkMutedForeground : AppColors.lightMutedForeground;
-    final card = isDark ? AppColors.darkCard : AppColors.lightCard;
-    final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
-    final primary = isDark ? AppColors.darkPrimary : AppColors.lightPrimary;
-    final onPrimary =
-        isDark ? AppColors.darkPrimaryForeground : AppColors.lightPrimaryForeground;
-    final secondary = isDark ? AppColors.darkSecondary : AppColors.lightSecondary;
-    final destructive = isDark ? AppColors.darkDestructive : AppColors.lightDestructive;
-    final onDestructive = isDark
+    final fg = widget.isDark
+        ? AppColors.darkForeground
+        : AppColors.lightForeground;
+    final muted = widget.isDark
+        ? AppColors.darkMutedForeground
+        : AppColors.lightMutedForeground;
+    final card = widget.isDark ? AppColors.darkCard : AppColors.lightCard;
+    final border = widget.isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final primary =
+        widget.isDark ? AppColors.darkPrimary : AppColors.lightPrimary;
+    final onPrimary = widget.isDark
+        ? AppColors.darkPrimaryForeground
+        : AppColors.lightPrimaryForeground;
+    final secondary =
+        widget.isDark ? AppColors.darkSecondary : AppColors.lightSecondary;
+    final destructive = widget.isDark
+        ? AppColors.darkDestructive
+        : AppColors.lightDestructive;
+    final onDestructive = widget.isDark
         ? AppColors.darkDestructiveForeground
         : AppColors.lightDestructiveForeground;
 
@@ -91,7 +128,7 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'John Doe',
+                  _userName,
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
@@ -105,7 +142,7 @@ class ProfileScreen extends StatelessWidget {
                     Icon(Icons.mail_outline, size: 16, color: muted),
                     const SizedBox(width: 8),
                     Text(
-                      'john.doe@example.com',
+                      _userEmail,
                       style: TextStyle(fontSize: 14, color: muted),
                     ),
                   ],
@@ -131,7 +168,9 @@ class ProfileScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
-                    isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+                    widget.isDark
+                        ? Icons.dark_mode_outlined
+                        : Icons.light_mode_outlined,
                     size: 20,
                     color: fg,
                   ),
@@ -147,16 +186,16 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        isDark ? 'Enabled' : 'Disabled',
+                        widget.isDark ? 'Enabled' : 'Disabled',
                         style: TextStyle(fontSize: 12, color: muted),
                       ),
                     ],
                   ),
                 ),
                 AppSwitch(
-                  value: isDark,
-                  onChanged: (_) => onToggleTheme(),
-                  isDark: isDark,
+                  value: widget.isDark,
+                  onChanged: (_) => widget.onToggleTheme(),
+                  isDark: widget.isDark,
                 ),
               ],
             ),
@@ -206,9 +245,9 @@ class ProfileScreen extends StatelessWidget {
           SizedBox(
             height: 48,
             child: ElevatedButton(
-              onPressed: onLogout,
+              onPressed: widget.onLogout,
               style: ElevatedButton.styleFrom(
-                backgroundColor: isDark
+                backgroundColor: widget.isDark
                     ? destructive.withValues(alpha: 0.6)
                     : destructive,
                 foregroundColor: onDestructive,

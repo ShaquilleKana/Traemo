@@ -2,23 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../services/api_service.dart';
 import '../theme/app_colors.dart';
-import '../utils/chat_parser.dart';
-import '../utils/formatters.dart';
-
-class ChatMessage {
-  ChatMessage({
-    required this.id,
-    required this.type,
-    required this.text,
-    required this.timestamp,
-  });
-
-  final String id;
-  final String type; // 'user' | 'bot'
-  final String text;
-  final DateTime timestamp;
-}
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -28,15 +13,7 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final List<ChatMessage> _messages = [
-    ChatMessage(
-      id: '1',
-      type: 'bot',
-      text:
-          "Hi! I'm here to help you track your expenses. Try saying \"makan 15000\" or \"gaji 5000000\"",
-      timestamp: DateTime.now(),
-    ),
-  ];
+  final List<Map<String, String>> _messages = [];
   final TextEditingController _input = TextEditingController();
   final ScrollController _scroll = ScrollController();
   bool _typing = false;
@@ -70,38 +47,34 @@ class _ChatScreenState extends State<ChatScreen> {
     if (messageText.isEmpty) return;
 
     setState(() {
-      _messages.add(ChatMessage(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        type: 'user',
-        text: messageText,
-        timestamp: DateTime.now(),
-      ));
+      _messages.add({
+        'text': messageText,
+        'sender': 'user',
+      });
       _input.clear();
       _typing = true;
     });
     _scrollToBottom();
 
-    await Future<void>.delayed(const Duration(milliseconds: 800));
+    String botResponse = 'Terjadi kesalahan koneksi';
 
-    if (!mounted) return;
-    final tx = parseTransaction(messageText);
-    String botResponse;
-    if (tx != null) {
-      final emoji = tx.type == 'income' ? '💰' : '💸';
-      botResponse =
-          '$emoji Transaction recorded: ${tx.category} - ${formatCurrencyIdr(tx.amount)}';
-    } else {
-      botResponse =
-          'I didn\'t understand that. Try "makan 15000" for expenses or "gaji 5000000" for income.';
+    try {
+      final response = await ApiService.sendMessage(messageText);
+      final responseMessage = response['message'];
+      if (responseMessage is String && responseMessage.trim().isNotEmpty) {
+        botResponse = responseMessage;
+      }
+    } catch (_) {
+      botResponse = 'Terjadi kesalahan koneksi';
     }
 
+    if (!mounted) return;
+
     setState(() {
-      _messages.add(ChatMessage(
-        id: (DateTime.now().millisecondsSinceEpoch + 1).toString(),
-        type: 'bot',
-        text: botResponse,
-        timestamp: DateTime.now(),
-      ));
+      _messages.add({
+        'text': botResponse,
+        'sender': 'bot',
+      });
       _typing = false;
     });
     _scrollToBottom();
@@ -117,13 +90,17 @@ class _ChatScreenState extends State<ChatScreen> {
     final muted =
         isDark ? AppColors.darkMutedForeground : AppColors.lightMutedForeground;
     final primary = isDark ? AppColors.darkPrimary : AppColors.lightPrimary;
-    final onPrimary =
-        isDark ? AppColors.darkPrimaryForeground : AppColors.lightPrimaryForeground;
-    final secondary = isDark ? AppColors.darkSecondary : AppColors.lightSecondary;
-    final secondaryFg =
-        isDark ? AppColors.darkSecondaryForeground : AppColors.lightSecondaryForeground;
-    final inputBg =
-        isDark ? AppColors.darkInputBackground : AppColors.lightInputBackground;
+    final onPrimary = isDark
+        ? AppColors.darkPrimaryForeground
+        : AppColors.lightPrimaryForeground;
+    final secondary =
+        isDark ? AppColors.darkSecondary : AppColors.lightSecondary;
+    final secondaryFg = isDark
+        ? AppColors.darkSecondaryForeground
+        : AppColors.lightSecondaryForeground;
+    final inputBg = isDark
+        ? AppColors.darkInputBackground
+        : AppColors.lightInputBackground;
 
     return ColoredBox(
       color: bg,
@@ -176,7 +153,7 @@ class _ChatScreenState extends State<ChatScreen> {
               itemBuilder: (context, index) {
                 if (index < _messages.length) {
                   final m = _messages[index];
-                  final isUser = m.type == 'user';
+                  final isUser = m['sender'] == 'user';
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: Row(
@@ -225,7 +202,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                     ),
                                   ),
                                   child: Text(
-                                    m.text,
+                                    m['text'] ?? '',
                                     textAlign: TextAlign.start,
                                     textDirection: TextDirection.ltr,
                                     style: TextStyle(
@@ -262,8 +239,11 @@ class _ChatScreenState extends State<ChatScreen> {
                                   color: secondary,
                                   shape: BoxShape.circle,
                                 ),
-                                child: Icon(Icons.smart_toy_outlined,
-                                    size: 16, color: primary),
+                                child: Icon(
+                                  Icons.smart_toy_outlined,
+                                  size: 16,
+                                  color: primary,
+                                ),
                               ),
                               const SizedBox(width: 8),
                               Container(
@@ -441,7 +421,10 @@ class _TypingDotsState extends State<_TypingDots>
               child: Container(
                 width: 8,
                 height: 8,
-                decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: dotColor,
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
             const SizedBox(width: 4),
@@ -450,7 +433,10 @@ class _TypingDotsState extends State<_TypingDots>
               child: Container(
                 width: 8,
                 height: 8,
-                decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: dotColor,
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
             const SizedBox(width: 4),
@@ -459,7 +445,10 @@ class _TypingDotsState extends State<_TypingDots>
               child: Container(
                 width: 8,
                 height: 8,
-                decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: dotColor,
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
           ],

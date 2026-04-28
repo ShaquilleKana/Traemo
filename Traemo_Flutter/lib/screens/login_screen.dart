@@ -1,11 +1,85 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.onLogin});
 
   final VoidCallback onLogin;
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email dan password wajib diisi')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final res = await ApiService.login(email, password);
+      final userId = res['user_id'];
+
+      if (userId is! int) {
+        throw const ApiException('Server error');
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('user_id', userId);
+      await prefs.setString('user_name', (res['name'] as String?) ?? '');
+      await prefs.setString('user_email', email);
+
+      if (!mounted) return;
+      widget.onLogin();
+    } catch (e) {
+      if (!mounted) return;
+      final message = _buildErrorMessage(e);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  String _buildErrorMessage(Object error) {
+    if (error is ApiException && error.message.isNotEmpty) {
+      return error.message;
+    }
+
+    final rawMessage = error.toString();
+    if (rawMessage.isEmpty) {
+      return 'Server error';
+    }
+
+    return rawMessage
+        .replaceFirst('Exception: ', '')
+        .replaceFirst('Unhandled Exception: ', '');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,8 +90,9 @@ class LoginScreen extends StatelessWidget {
     final card = isDark ? AppColors.darkCard : AppColors.lightCard;
     final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
     final primary = isDark ? AppColors.darkPrimary : AppColors.lightPrimary;
-    final onPrimary =
-        isDark ? AppColors.darkPrimaryForeground : AppColors.lightPrimaryForeground;
+    final onPrimary = isDark
+        ? AppColors.darkPrimaryForeground
+        : AppColors.lightPrimaryForeground;
     final bg = isDark ? AppColors.darkBackground : AppColors.lightBackground;
 
     return Scaffold(
@@ -62,8 +137,11 @@ class LoginScreen extends StatelessWidget {
                               ),
                             ],
                           ),
-                          child: Icon(Icons.account_balance_wallet_outlined,
-                              size: 40, color: onPrimary),
+                          child: Icon(
+                            Icons.account_balance_wallet_outlined,
+                            size: 40,
+                            color: onPrimary,
+                          ),
                         ),
                         const SizedBox(height: 24),
                         Text(
@@ -95,7 +173,9 @@ class LoginScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         TextField(
+                          controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
+                          enabled: !_isLoading,
                           decoration: InputDecoration(
                             hintText: 'you@example.com',
                             hintStyle: TextStyle(color: muted),
@@ -125,7 +205,10 @@ class LoginScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         TextField(
+                          controller: _passwordController,
                           obscureText: true,
+                          enabled: !_isLoading,
+                          onSubmitted: (_) => _handleLogin(),
                           decoration: InputDecoration(
                             hintText: 'Enter your password',
                             hintStyle: TextStyle(color: muted),
@@ -149,7 +232,7 @@ class LoginScreen extends StatelessWidget {
                         SizedBox(
                           height: 48,
                           child: ElevatedButton(
-                            onPressed: onLogin,
+                            onPressed: _isLoading ? null : _handleLogin,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: primary,
                               foregroundColor: onPrimary,
@@ -158,7 +241,18 @@ class LoginScreen extends StatelessWidget {
                               ),
                               elevation: 0,
                             ),
-                            child: const Text('Login'),
+                            child: _isLoading
+                                ? SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        onPrimary,
+                                      ),
+                                    ),
+                                  )
+                                : const Text('Login'),
                           ),
                         ),
                         const SizedBox(height: 16),

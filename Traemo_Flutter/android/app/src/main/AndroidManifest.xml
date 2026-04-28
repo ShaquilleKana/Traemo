@@ -2,7 +2,8 @@
     <application
         android:label="Traemo"
         android:name="${applicationName}"
-        android:icon="@drawable/ic_launcher_app">
+        android:icon="@drawable/ic_launcher_app"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"
