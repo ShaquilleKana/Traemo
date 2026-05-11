@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/api_service.dart';
 import '../theme/app_colors.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.onLogin});
@@ -47,9 +48,12 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       final prefs = await SharedPreferences.getInstance();
+
+      // Persist auth state for auto-login on the next app start.
       await prefs.setInt('user_id', userId);
       await prefs.setString('user_name', (res['name'] as String?) ?? '');
       await prefs.setString('user_email', email);
+      await prefs.setBool('is_logged_in', true);
 
       if (!mounted) return;
       widget.onLogin();
@@ -265,7 +269,17 @@ class _LoginScreenState extends State<LoginScreen> {
                                 alignment: PlaceholderAlignment.baseline,
                                 baseline: TextBaseline.alphabetic,
                                 child: GestureDetector(
-                                  onTap: () {},
+                                  onTap: _isLoading
+                                      ? null
+                                      : () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  const RegisterScreen(),
+                                            ),
+                                          );
+                                        },
                                   child: Text(
                                     'Register',
                                     style: TextStyle(

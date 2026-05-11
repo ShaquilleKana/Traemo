@@ -32,8 +32,8 @@ class _MainShellState extends State<MainShell> {
 
     final pages = <Widget>[
       const ChatScreen(),
-      DashboardScreen(isDark: widget.isDark),
-      HistoryScreen(isDark: widget.isDark),
+      DashboardScreen(isDark: widget.isDark, isActive: _index == 1),
+      HistoryScreen(isDark: widget.isDark, isActive: _index == 2),
       ProfileScreen(
         isDark: widget.isDark,
         onToggleTheme: widget.onToggleTheme,

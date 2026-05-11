@@ -10,7 +10,7 @@ class ChatController extends Controller
 {
     public function handle(Request $request)
     {
-        $userId = 1; // sementara hardcode dulu
+        $userId = $request->user_id;
 
         $message = strtolower($request->message);
 
@@ -67,11 +67,15 @@ class ChatController extends Controller
         ]);
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        return Chat::where('user_id', 1)
+        $userId = $request->user_id;
+
+        $chats = Chat::where('user_id', $userId)
             ->orderBy('created_at', 'asc')
             ->get();
+
+        return response()->json($chats);
     }
 
     public function summary()

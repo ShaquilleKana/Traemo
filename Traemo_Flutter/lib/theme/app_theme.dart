@@ -57,17 +57,17 @@ abstract final class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(foregroundColor: AppColors.lightPrimary),
       ),
-      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.lightCard,
         selectedItemColor: AppColors.lightPrimary,
         unselectedItemColor: AppColors.lightMutedForeground,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
-        selectedLabelStyle: const TextStyle(
+        selectedLabelStyle: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w500,
         ),
-        unselectedLabelStyle: const TextStyle(fontSize: 12),
+        unselectedLabelStyle: TextStyle(fontSize: 12),
       ),
     );
   }
@@ -125,17 +125,17 @@ abstract final class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(foregroundColor: AppColors.darkPrimary),
       ),
-      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.darkCard,
         selectedItemColor: AppColors.darkPrimary,
         unselectedItemColor: AppColors.darkMutedForeground,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
-        selectedLabelStyle: const TextStyle(
+        selectedLabelStyle: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w500,
         ),
-        unselectedLabelStyle: const TextStyle(fontSize: 12),
+        unselectedLabelStyle: TextStyle(fontSize: 12),
       ),
     );
   }

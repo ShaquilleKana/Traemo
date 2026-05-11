@@ -33,8 +33,10 @@ class _TraemoAppState extends State<TraemoApp> {
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString('theme');
+    final isLoggedIn = prefs.getBool('is_logged_in') ?? false;
     if (!mounted) return;
     setState(() {
+      _loggedIn = isLoggedIn;
       _themeMode = saved == 'dark' ? ThemeMode.dark : ThemeMode.light;
       _prefsLoaded = true;
     });
@@ -49,6 +51,16 @@ class _TraemoAppState extends State<TraemoApp> {
     final next = _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
     setState(() => _themeMode = next);
     _persistTheme(next);
+  }
+
+  Future<void> _handleLogout() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // Clear saved auth session so the next app start returns to login.
+    await prefs.clear();
+
+    if (!mounted) return;
+    setState(() => _loggedIn = false);
   }
 
   @override
@@ -79,7 +91,7 @@ class _TraemoAppState extends State<TraemoApp> {
           ? MainShell(
               isDark: _themeMode == ThemeMode.dark,
               onToggleTheme: _toggleTheme,
-              onLogout: () => setState(() => _loggedIn = false),
+              onLogout: _handleLogout,
             )
           : LoginScreen(onLogin: () => setState(() => _loggedIn = true)),
     );

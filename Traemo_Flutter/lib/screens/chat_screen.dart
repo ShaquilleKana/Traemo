@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/api_service.dart';
 import '../theme/app_colors.dart';
@@ -25,6 +27,12 @@ class _ChatScreenState extends State<ChatScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadChats();
+  }
+
+  @override
   void dispose() {
     _input.dispose();
     _scroll.dispose();
@@ -40,6 +48,35 @@ class _ChatScreenState extends State<ChatScreen> {
         curve: Curves.easeOut,
       );
     });
+  }
+
+  Future<void> _loadChats() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt("user_id");
+
+      if (userId == null) return;
+
+      final chats = await ApiService.getChats(userId);
+
+      if (!mounted) return;
+
+      setState(() {
+        _messages
+          ..clear()
+          ..addAll(
+            chats.map<Map<String, String>>((chat) {
+              return {
+                "text": chat["message"].toString(),
+                "sender": chat["sender"].toString(),
+              };
+            }).toList(),
+          );
+      });
+      _scrollToBottom();
+    } catch (e) {
+      developer.log("LOAD CHAT ERROR: $e", name: 'ChatScreen');
+    }
   }
 
   Future<void> _handleSend([String? text]) async {
@@ -59,7 +96,13 @@ class _ChatScreenState extends State<ChatScreen> {
     String botResponse = 'Terjadi kesalahan koneksi';
 
     try {
-      final response = await ApiService.sendMessage(messageText);
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt("user_id");
+      if (userId == null) {
+        throw Exception("User session not found");
+      }
+
+      final response = await ApiService.sendMessage(messageText, userId);
       final responseMessage = response['message'];
       if (responseMessage is String && responseMessage.trim().isNotEmpty) {
         botResponse = responseMessage;
@@ -98,9 +141,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final secondaryFg = isDark
         ? AppColors.darkSecondaryForeground
         : AppColors.lightSecondaryForeground;
-    final inputBg = isDark
-        ? AppColors.darkInputBackground
-        : AppColors.lightInputBackground;
+    final inputBg =
+        isDark ? AppColors.darkInputBackground : AppColors.lightInputBackground;
 
     return ColoredBox(
       color: bg,
@@ -157,8 +199,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: Row(
-                      mainAxisAlignment:
-                          isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+                      mainAxisAlignment: isUser
+                          ? MainAxisAlignment.end
+                          : MainAxisAlignment.start,
                       children: [
                         ConstrainedBox(
                           constraints: BoxConstraints(
@@ -177,7 +220,9 @@ class _ChatScreenState extends State<ChatScreen> {
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
-                                  isUser ? Icons.person : Icons.smart_toy_outlined,
+                                  isUser
+                                      ? Icons.person
+                                      : Icons.smart_toy_outlined,
                                   size: 16,
                                   color: isUser ? onPrimary : primary,
                                 ),
@@ -196,7 +241,8 @@ class _ChatScreenState extends State<ChatScreen> {
                                         : Border.all(color: border),
                                     borderRadius: BorderRadius.only(
                                       topLeft: Radius.circular(isUser ? 16 : 4),
-                                      topRight: Radius.circular(isUser ? 4 : 16),
+                                      topRight:
+                                          Radius.circular(isUser ? 4 : 16),
                                       bottomLeft: const Radius.circular(16),
                                       bottomRight: const Radius.circular(16),
                                     ),
@@ -291,7 +337,12 @@ class _ChatScreenState extends State<ChatScreen> {
                           color: secondary,
                           borderRadius: BorderRadius.circular(999),
                           child: InkWell(
-                            onTap: () => _handleSend(a.value),
+                            onTap: () {
+                              _input.text = a.value;
+                              _input.selection = TextSelection.fromPosition(
+                                TextPosition(offset: _input.text.length),
+                              );
+                            },
                             borderRadius: BorderRadius.circular(999),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(

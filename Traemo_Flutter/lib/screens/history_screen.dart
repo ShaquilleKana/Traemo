@@ -1,5 +1,9 @@
-import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
 
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/formatters.dart';
 
@@ -21,68 +25,110 @@ class HistoryTransaction {
   final String icon;
 }
 
-class HistoryScreen extends StatelessWidget {
-  const HistoryScreen({super.key, required this.isDark});
+class HistoryScreen extends StatefulWidget {
+  const HistoryScreen({
+    super.key,
+    required this.isDark,
+    this.isActive = false,
+  });
 
   final bool isDark;
+  final bool isActive;
 
-  static final DateTime _anchor = DateTime(2026, 4, 12);
+  @override
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
 
-  static final List<HistoryTransaction> _transactions = [
-    HistoryTransaction(
-      id: '1',
-      category: 'Gaji',
-      amount: 5000000,
-      type: 'income',
-      date: DateTime(2026, 4, 10),
-      icon: 'wallet',
-    ),
-    HistoryTransaction(
-      id: '2',
-      category: 'Makan',
-      amount: 45000,
-      type: 'expense',
-      date: DateTime(2026, 4, 11),
-      icon: 'food',
-    ),
-    HistoryTransaction(
-      id: '3',
-      category: 'Bensin',
-      amount: 50000,
-      type: 'expense',
-      date: DateTime(2026, 4, 11),
-      icon: 'car',
-    ),
-    HistoryTransaction(
-      id: '4',
-      category: 'Coffee',
-      amount: 25000,
-      type: 'expense',
-      date: DateTime(2026, 4, 11),
-      icon: 'coffee',
-    ),
-    HistoryTransaction(
-      id: '5',
-      category: 'Belanja',
-      amount: 150000,
-      type: 'expense',
-      date: DateTime(2026, 4, 12),
-      icon: 'shopping',
-    ),
-    HistoryTransaction(
-      id: '6',
-      category: 'Makan',
-      amount: 38000,
-      type: 'expense',
-      date: DateTime(2026, 4, 12),
-      icon: 'food',
-    ),
-  ];
+class _HistoryScreenState extends State<HistoryScreen> {
+  List<HistoryTransaction> transactionList = [];
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    loadTransactions();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    loadTransactions();
+  }
+
+  @override
+  void didUpdateWidget(covariant HistoryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.isActive && widget.isActive) {
+      loadTransactions();
+    }
+  }
+
+  Future<void> loadTransactions() async {
+    if (_isLoading) return;
+
+    _isLoading = true;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt("user_id");
+
+      if (userId == null) {
+        return;
+      }
+
+      final transactions = await ApiService.getTransactions(userId);
+
+      if (!mounted) return;
+
+      setState(() {
+        transactionList = transactions
+            .whereType<Map<String, dynamic>>()
+            .map(_fromJson)
+            .toList();
+      });
+    } catch (e) {
+      developer.log("LOAD TRANSACTION ERROR: $e", name: 'HistoryScreen');
+    } finally {
+      _isLoading = false;
+    }
+  }
+
+  HistoryTransaction _fromJson(Map<String, dynamic> transaction) {
+    final rawDate = transaction['created_at'] ?? transaction['tanggal'];
+    final parsedDate = DateTime.tryParse(rawDate?.toString() ?? '');
+
+    return HistoryTransaction(
+      id: transaction['id'].toString(),
+      category: transaction['kategori']?.toString() ?? '-',
+      amount: int.tryParse(transaction['jumlah'].toString()) ?? 0,
+      type: transaction['tipe']?.toString() ?? 'expense',
+      date: parsedDate ?? DateTime.now(),
+      icon: _iconNameForCategory(transaction['kategori']?.toString() ?? ''),
+    );
+  }
+
+  String _iconNameForCategory(String category) {
+    final normalized = category.toLowerCase();
+
+    if (normalized.contains('makan')) return 'food';
+    if (normalized.contains('coffee') || normalized.contains('kopi')) {
+      return 'coffee';
+    }
+    if (normalized.contains('bensin') || normalized.contains('transport')) {
+      return 'car';
+    }
+    if (normalized.contains('belanja')) return 'shopping';
+    if (normalized.contains('gaji') || normalized.contains('salary')) {
+      return 'wallet';
+    }
+
+    return 'wallet';
+  }
 
   Map<String, List<HistoryTransaction>> _grouped() {
     final map = <String, List<HistoryTransaction>>{};
-    for (final t in _transactions) {
-      final key = formatHistoryDate(t.date, todayAnchor: _anchor);
+    for (final t in transactionList) {
+      final key = formatHistoryDate(t.date, todayAnchor: DateTime.now());
       map.putIfAbsent(key, () => []).add(t);
     }
     return map;
@@ -107,6 +153,7 @@ class HistoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = widget.isDark;
     final fg = isDark ? AppColors.darkForeground : AppColors.lightForeground;
     final muted =
         isDark ? AppColors.darkMutedForeground : AppColors.lightMutedForeground;

@@ -1,32 +1,108 @@
+import 'dart:developer' as developer;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/formatters.dart';
 
-class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key, required this.isDark});
+class DashboardScreen extends StatefulWidget {
+  const DashboardScreen({
+    super.key,
+    required this.isDark,
+    this.isActive = false,
+  });
 
   final bool isDark;
+  final bool isActive;
 
-  static const List<Map<String, int>> _chartRows = [
-    {'income': 0, 'expense': 45000},
-    {'income': 0, 'expense': 32000},
-    {'income': 5000000, 'expense': 28000},
-    {'income': 0, 'expense': 55000},
-    {'income': 0, 'expense': 41000},
-    {'income': 0, 'expense': 67000},
-    {'income': 0, 'expense': 38000},
-  ];
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  num totalBalance = 0;
+  num totalIncome = 0;
+  num totalExpense = 0;
+  List<double> weeklyIncome = List<double>.filled(7, 0);
+  List<double> weeklyExpense = List<double>.filled(7, 0);
+  bool _isLoading = false;
 
   static const List<String> _labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   @override
-  Widget build(BuildContext context) {
-    const totalIncome = 5000000;
-    const totalExpense = 306000;
-    const balance = totalIncome - totalExpense;
+  void initState() {
+    super.initState();
+    loadDashboardData();
+  }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    loadDashboardData();
+  }
+
+  @override
+  void didUpdateWidget(covariant DashboardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.isActive && widget.isActive) {
+      loadDashboardData();
+    }
+  }
+
+  Future<void> loadDashboardData() async {
+    if (_isLoading) return;
+
+    _isLoading = true;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt("user_id");
+
+      if (userId == null) {
+        return;
+      }
+
+      final data = await ApiService.getDashboardSummary(userId);
+
+      if (!mounted) return;
+
+      setState(() {
+        totalBalance = _asNum(data["balance"]);
+        totalIncome = _asNum(data["income"]);
+        totalExpense = _asNum(data["expense"]);
+        weeklyIncome = _asDoubleList(data["weekly_income"]);
+        weeklyExpense = _asDoubleList(data["weekly_expense"]);
+      });
+    } catch (e) {
+      developer.log("DASHBOARD ERROR: $e", name: 'DashboardScreen');
+    } finally {
+      _isLoading = false;
+    }
+  }
+
+  num _asNum(dynamic value) {
+    if (value is num) return value;
+    return num.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  List<double> _asDoubleList(dynamic value) {
+    if (value is! List) return List<double>.filled(7, 0);
+
+    final values = value.map((e) => _asNum(e).toDouble()).toList();
+    if (values.length >= 7) return values.take(7).toList();
+
+    return [
+      ...values,
+      ...List<double>.filled(7 - values.length, 0),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
     final fg = isDark ? AppColors.darkForeground : AppColors.lightForeground;
     final muted =
         isDark ? AppColors.darkMutedForeground : AppColors.lightMutedForeground;
@@ -40,18 +116,19 @@ class DashboardScreen extends StatelessWidget {
     final gridColor =
         isDark ? AppColors.chartGridDark : AppColors.chartGridLight;
 
-    final maxY = _chartRows
-        .map((e) => [e['income']!, e['expense']!].reduce((a, b) => a > b ? a : b))
-        .reduce((a, b) => a > b ? a : b)
-        .toDouble();
+    final rawMaxY = [
+      ...weeklyIncome,
+      ...weeklyExpense,
+    ].reduce((a, b) => a > b ? a : b);
+    final maxY = rawMaxY > 0 ? rawMaxY * 1.05 : 1.0;
 
     final incomeSpots = <FlSpot>[
-      for (var i = 0; i < _chartRows.length; i++)
-        FlSpot(i.toDouble(), _chartRows[i]['income']!.toDouble()),
+      for (var i = 0; i < weeklyIncome.length; i++)
+        FlSpot(i.toDouble(), weeklyIncome[i]),
     ];
     final expenseSpots = <FlSpot>[
-      for (var i = 0; i < _chartRows.length; i++)
-        FlSpot(i.toDouble(), _chartRows[i]['expense']!.toDouble()),
+      for (var i = 0; i < weeklyExpense.length; i++)
+        FlSpot(i.toDouble(), weeklyExpense[i]),
     ];
 
     return ColoredBox(
@@ -115,7 +192,7 @@ class DashboardScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    formatCurrencyIdr(balance),
+                    formatCurrencyIdr(totalBalance),
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.w600,
@@ -197,7 +274,7 @@ class DashboardScreen extends StatelessWidget {
                         minX: 0,
                         maxX: (_labels.length - 1).toDouble(),
                         minY: 0,
-                        maxY: maxY * 1.05,
+                        maxY: maxY,
                         gridData: FlGridData(
                           show: true,
                           drawVerticalLine: false,
