@@ -28,9 +28,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
   num totalExpense = 0;
   List<double> weeklyIncome = List<double>.filled(7, 0);
   List<double> weeklyExpense = List<double>.filled(7, 0);
+  List<_ExpenseCategoryDistribution> expenseCategoryDistribution = [];
   bool _isLoading = false;
 
-  static const List<String> _labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  static const List<String> _labels = [
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun'
+  ];
+  static const List<Color> _neonPieColors = [
+    Color(0xFF10F29A),
+    Color(0xFF38BDF8),
+    Color(0xFFFACC15),
+    Color(0xFFA855F7),
+    Color(0xFF22D3EE),
+    Color(0xFFF472B6),
+  ];
 
   @override
   void initState() {
@@ -60,12 +77,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getInt("user_id");
+      final token = prefs.getString("auth_token") ?? '';
 
-      if (userId == null) {
+      if (userId == null || token.isEmpty) {
         return;
       }
 
-      final data = await ApiService.getDashboardSummary(userId);
+      final data = await ApiService.getDashboardSummary(userId, token: token);
 
       if (!mounted) return;
 
@@ -75,6 +93,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         totalExpense = _asNum(data["expense"]);
         weeklyIncome = _asDoubleList(data["weekly_income"]);
         weeklyExpense = _asDoubleList(data["weekly_expense"]);
+        expenseCategoryDistribution = _asExpenseCategoryDistribution(
+            data["expense_category_distribution"]);
       });
     } catch (e) {
       developer.log("DASHBOARD ERROR: $e", name: 'DashboardScreen');
@@ -100,6 +120,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ];
   }
 
+  List<_ExpenseCategoryDistribution> _asExpenseCategoryDistribution(
+    dynamic value,
+  ) {
+    if (value is! List) return [];
+
+    return value
+        .whereType<Map>()
+        .map(
+          (item) => _ExpenseCategoryDistribution(
+            category: item['category']?.toString() ?? '-',
+            total: _asNum(item['total']),
+          ),
+        )
+        .where((item) => item.total > 0)
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = widget.isDark;
@@ -109,8 +146,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final card = isDark ? AppColors.darkCard : AppColors.lightCard;
     final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
     final primary = isDark ? AppColors.darkPrimary : AppColors.lightPrimary;
-    final onPrimary =
-        isDark ? AppColors.darkPrimaryForeground : AppColors.lightPrimaryForeground;
+    final onPrimary = isDark
+        ? AppColors.darkPrimaryForeground
+        : AppColors.lightPrimaryForeground;
     final income = isDark ? AppColors.darkIncome : AppColors.lightIncome;
     final expense = isDark ? AppColors.darkExpense : AppColors.lightExpense;
     final gridColor =
@@ -202,7 +240,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(Icons.north_east, size: 16, color: onPrimary.withValues(alpha: 0.8)),
+                      Icon(Icons.north_east,
+                          size: 16, color: onPrimary.withValues(alpha: 0.8)),
                       const SizedBox(width: 4),
                       Text(
                         '+12% from last week',
@@ -332,8 +371,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         lineTouchData: LineTouchData(
                           touchTooltipData: LineTouchTooltipData(
-                            getTooltipColor: (_) =>
-                                isDark ? AppColors.darkCard : AppColors.lightCard,
+                            getTooltipColor: (_) => isDark
+                                ? AppColors.darkCard
+                                : AppColors.lightCard,
                             getTooltipItems: (touchedSpots) {
                               return touchedSpots.map((s) {
                                 return LineTooltipItem(
@@ -395,14 +435,370 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     children: [
                       _LegendDot(color: income, label: 'Income', muted: muted),
                       const SizedBox(width: 24),
-                      _LegendDot(color: expense, label: 'Expense', muted: muted),
+                      _LegendDot(
+                          color: expense, label: 'Expense', muted: muted),
                     ],
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: 24),
+            _ExpenseDistributionCard(
+              border: border,
+              card: card,
+              foreground: fg,
+              muted: muted,
+              totalExpense: totalExpense,
+              distribution: expenseCategoryDistribution,
+              colors: _neonPieColors,
+            ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ExpenseCategoryDistribution {
+  const _ExpenseCategoryDistribution({
+    required this.category,
+    required this.total,
+  });
+
+  final String category;
+  final num total;
+}
+
+class _ExpenseDistributionCard extends StatelessWidget {
+  const _ExpenseDistributionCard({
+    required this.border,
+    required this.card,
+    required this.foreground,
+    required this.muted,
+    required this.totalExpense,
+    required this.distribution,
+    required this.colors,
+  });
+
+  final Color border;
+  final Color card;
+  final Color foreground;
+  final Color muted;
+  final num totalExpense;
+  final List<_ExpenseCategoryDistribution> distribution;
+  final List<Color> colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasData = distribution.isNotEmpty && totalExpense > 0;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: border),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.darkPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Expense Distribution',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: foreground,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Based on expense categories',
+            style: TextStyle(fontSize: 12, color: muted),
+          ),
+          const SizedBox(height: 20),
+          if (hasData)
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final chartSize = constraints.maxWidth < 360 ? 220.0 : 260.0;
+                final centerRadius = chartSize * 0.27;
+                final sectionRadius = chartSize * 0.14;
+
+                return Column(
+                  children: [
+                    Center(
+                      child: SizedBox(
+                        width: chartSize,
+                        height: chartSize,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
+                              width: chartSize * 0.78,
+                              height: chartSize * 0.78,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  for (final color in colors.take(4))
+                                    BoxShadow(
+                                      color: color.withValues(alpha: 0.16),
+                                      blurRadius: 28,
+                                      spreadRadius: -8,
+                                    ),
+                                ],
+                              ),
+                            ),
+                            TweenAnimationBuilder<double>(
+                              tween: Tween(begin: 0, end: 1),
+                              duration: const Duration(milliseconds: 650),
+                              curve: Curves.easeOutCubic,
+                              builder: (context, progress, child) {
+                                return PieChart(
+                                  PieChartData(
+                                    startDegreeOffset: -90,
+                                    sectionsSpace: 4,
+                                    centerSpaceRadius: centerRadius,
+                                    borderData: FlBorderData(show: false),
+                                    sections: _buildSections(
+                                      progress,
+                                      sectionRadius,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            Container(
+                              width: centerRadius * 1.7,
+                              height: centerRadius * 1.7,
+                              decoration: BoxDecoration(
+                                color: card,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: border.withValues(alpha: 0.8),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.darkPrimary
+                                        .withValues(alpha: 0.14),
+                                    blurRadius: 18,
+                                  ),
+                                ],
+                              ),
+                              child: Center(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          'Total Expense',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: muted,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          formatCurrencyIdr(totalExpense),
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700,
+                                            color: foreground,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Wrap(
+                      spacing: 14,
+                      runSpacing: 12,
+                      children: [
+                        for (var i = 0; i < distribution.length; i++)
+                          _ExpenseLegendItem(
+                            color: colors[i % colors.length],
+                            label: distribution[i].category,
+                            percentage:
+                                distribution[i].total / totalExpense * 100,
+                            foreground: foreground,
+                            muted: muted,
+                          ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            )
+          else
+            _ExpenseEmptyState(muted: muted, foreground: foreground),
+        ],
+      ),
+    );
+  }
+
+  List<PieChartSectionData> _buildSections(
+    double progress,
+    double sectionRadius,
+  ) {
+    return [
+      for (var i = 0; i < distribution.length; i++)
+        PieChartSectionData(
+          value: distribution[i].total.toDouble() * progress,
+          showTitle: false,
+          radius: sectionRadius,
+          color: colors[i % colors.length],
+          badgeWidget: Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: colors[i % colors.length],
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: colors[i % colors.length].withValues(alpha: 0.7),
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+          ),
+          badgePositionPercentageOffset: 1.08,
+          borderSide: BorderSide(
+            color: colors[i % colors.length].withValues(alpha: 0.9),
+            width: 1.2,
+          ),
+        ),
+    ];
+  }
+}
+
+class _ExpenseLegendItem extends StatelessWidget {
+  const _ExpenseLegendItem({
+    required this.color,
+    required this.label,
+    required this.percentage,
+    required this.foreground,
+    required this.muted,
+  });
+
+  final Color color;
+  final String label;
+  final double percentage;
+  final Color foreground;
+  final Color muted;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 130, maxWidth: 240),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.7),
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                color: foreground,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '${percentage.round()}%',
+            style: TextStyle(
+              fontSize: 12,
+              color: muted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExpenseEmptyState extends StatelessWidget {
+  const _ExpenseEmptyState({
+    required this.muted,
+    required this.foreground,
+  });
+
+  final Color muted;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 28),
+      decoration: BoxDecoration(
+        color: AppColors.darkPrimary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.darkPrimary.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.donut_large,
+            color: AppColors.darkPrimary.withValues(alpha: 0.8),
+            size: 32,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Belum ada data pengeluaran',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: foreground,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Kategori pengeluaran akan muncul setelah transaksi tercatat.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: muted, fontSize: 12),
+          ),
+        ],
       ),
     );
   }

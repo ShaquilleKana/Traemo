@@ -147,11 +147,15 @@ class ApiService {
     return fallback;
   }
 
-  static Future<Map<String, dynamic>> getDashboardSummary(int userId) async {
+  static Future<Map<String, dynamic>> getDashboardSummary(
+    int userId, {
+    required String token,
+  }) async {
     final response = await http.get(
       Uri.parse("$baseUrl/dashboard-summary?user_id=$userId"),
       headers: {
         "Accept": "application/json",
+        "Authorization": "Bearer $token",
       },
     );
 
