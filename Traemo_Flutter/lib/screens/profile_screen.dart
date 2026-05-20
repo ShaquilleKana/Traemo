@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/notification_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_switch.dart';
 
@@ -20,14 +21,18 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen>
+    with SingleTickerProviderStateMixin {
   String _userName = 'John Doe';
   String _userEmail = 'john.doe@example.com';
+  bool isReminderEnabled = true;
+  TimeOfDay reminderTime = const TimeOfDay(hour: 20, minute: 0);
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _loadReminderSettings();
   }
 
   Future<void> _loadProfile() async {
@@ -42,6 +47,109 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _userEmail =
           (userEmail != null && userEmail.isNotEmpty) ? userEmail : _userEmail;
     });
+  }
+
+  Future<void> _loadReminderSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool('reminder_enabled') ?? true;
+    final savedTime = prefs.getString('reminder_time') ?? '20:00';
+    final time = _parseReminderTime(savedTime);
+
+    await prefs.setBool('reminder_enabled', enabled);
+    await prefs.setString('reminder_time', _formatReminderTime(time));
+
+    if (enabled) {
+      await NotificationService.scheduleDailyReminder(
+        hour: time.hour,
+        minute: time.minute,
+      );
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      isReminderEnabled = enabled;
+      reminderTime = time;
+    });
+  }
+
+  Future<void> _setReminderEnabled(bool enabled) async {
+    setState(() => isReminderEnabled = enabled);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('reminder_enabled', enabled);
+    await prefs.setString('reminder_time', _formatReminderTime(reminderTime));
+
+    if (enabled) {
+      await NotificationService.scheduleDailyReminder(
+        hour: reminderTime.hour,
+        minute: reminderTime.minute,
+      );
+      _showReminderSnackBar(
+        'Reminder aktif setiap pukul ${_formatReminderTime(reminderTime)}',
+      );
+    } else {
+      await NotificationService.cancelReminder();
+      _showReminderSnackBar('Reminder dinonaktifkan');
+    }
+  }
+
+  Future<void> _pickReminderTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: reminderTime,
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
+    );
+
+    if (picked == null) return;
+
+    setState(() => reminderTime = picked);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('reminder_time', _formatReminderTime(picked));
+    await NotificationService.scheduleDailyReminder(
+      hour: picked.hour,
+      minute: picked.minute,
+    );
+    _showReminderSnackBar(
+      'Reminder aktif setiap pukul ${_formatReminderTime(picked)}',
+    );
+  }
+
+  TimeOfDay _parseReminderTime(String value) {
+    final parts = value.split(':');
+    final hour = parts.isNotEmpty ? int.tryParse(parts[0]) : null;
+    final minute = parts.length > 1 ? int.tryParse(parts[1]) : null;
+
+    if (hour == null ||
+        minute == null ||
+        hour < 0 ||
+        hour > 23 ||
+        minute < 0 ||
+        minute > 59) {
+      return const TimeOfDay(hour: 20, minute: 0);
+    }
+
+    return TimeOfDay(hour: hour, minute: minute);
+  }
+
+  String _formatReminderTime(TimeOfDay time) {
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  void _showReminderSnackBar(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -196,6 +304,127 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   value: widget.isDark,
                   onChanged: (_) => widget.onToggleTheme(),
                   isDark: widget.isDark,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: card,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: border),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: secondary,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.notifications_active_outlined,
+                        size: 20,
+                        color: fg,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Reminder Pencatatan',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              color: fg,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Bantu kamu tetap konsisten mencatat transaksi harian',
+                            style: TextStyle(fontSize: 12, color: muted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    AppSwitch(
+                      value: isReminderEnabled,
+                      onChanged: _setReminderEnabled,
+                      isDark: widget.isDark,
+                    ),
+                  ],
+                ),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeInOut,
+                  alignment: Alignment.topCenter,
+                  child: isReminderEnabled
+                      ? Padding(
+                          padding: const EdgeInsets.only(top: 16),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: _pickReminderTime,
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: secondary,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: border),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.schedule_outlined,
+                                      size: 20,
+                                      color: primary,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Waktu Reminder',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: muted,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            _formatReminderTime(reminderTime),
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w600,
+                                              color: fg,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Icon(
+                                      Icons.edit_calendar_outlined,
+                                      size: 20,
+                                      color: muted,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ],
             ),

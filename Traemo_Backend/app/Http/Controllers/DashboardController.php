@@ -12,12 +12,12 @@ class DashboardController extends Controller
         $userId = $request->user_id;
 
         $income = Transaction::where('user_id', $userId)
-            ->where('tipe', 'income')
-            ->sum('jumlah');
+            ->whereHas('category', fn ($query) => $query->where('type', 'income'))
+            ->sum('amount');
 
         $expense = Transaction::where('user_id', $userId)
-            ->where('tipe', 'expense')
-            ->sum('jumlah');
+            ->whereHas('category', fn ($query) => $query->where('type', 'expense'))
+            ->sum('amount');
 
         $balance = $income - $expense;
 
@@ -28,14 +28,14 @@ class DashboardController extends Controller
             $date = now()->startOfWeek()->addDays($i)->toDateString();
 
             $dailyIncome = Transaction::where('user_id', $userId)
-                ->where('tipe', 'income')
+                ->whereHas('category', fn ($query) => $query->where('type', 'income'))
                 ->whereDate('created_at', $date)
-                ->sum('jumlah');
+                ->sum('amount');
 
             $dailyExpense = Transaction::where('user_id', $userId)
-                ->where('tipe', 'expense')
+                ->whereHas('category', fn ($query) => $query->where('type', 'expense'))
                 ->whereDate('created_at', $date)
-                ->sum('jumlah');
+                ->sum('amount');
 
             $weeklyIncome[] = $dailyIncome;
             $weeklyExpense[] = $dailyExpense;

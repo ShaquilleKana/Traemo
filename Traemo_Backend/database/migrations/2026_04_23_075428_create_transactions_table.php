@@ -14,11 +14,9 @@ return new class extends Migration
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->string('kategori');
-            $table->integer('jumlah');
-            $table->enum('tipe', ['income', 'expense']);
-            $table->date('tanggal');
-            $table->timestamps();
+            $table->unsignedBigInteger('amount');
+            $table->text('description')->nullable();
+            $table->timestamp('created_at')->nullable();
         });
     }
 

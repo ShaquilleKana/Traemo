@@ -19,6 +19,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _input = TextEditingController();
   final ScrollController _scroll = ScrollController();
   bool _typing = false;
+  static const _initialGreeting = 'Halo 👋\nSilakan catat transaksi kamu.';
 
   static const _quickActions = <({String label, String value})>[
     (label: 'makan 10k', value: 'makan 10000'),
@@ -65,12 +66,19 @@ class _ChatScreenState extends State<ChatScreen> {
         _messages
           ..clear()
           ..addAll(
-            chats.map<Map<String, String>>((chat) {
-              return {
-                "text": chat["message"].toString(),
-                "sender": chat["sender"].toString(),
-              };
-            }).toList(),
+            chats.isEmpty
+                ? [
+                    {
+                      "text": _initialGreeting,
+                      "sender": "bot",
+                    }
+                  ]
+                : chats.map<Map<String, String>>((chat) {
+                    return {
+                      "text": chat["message"].toString(),
+                      "sender": chat["sender"].toString(),
+                    };
+                  }).toList(),
           );
       });
       _scrollToBottom();
@@ -121,6 +129,55 @@ class _ChatScreenState extends State<ChatScreen> {
       _typing = false;
     });
     _scrollToBottom();
+  }
+
+  Future<void> _confirmClearChats() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus Riwayat Chat'),
+        content: const Text(
+          'Yakin ingin menghapus seluruh riwayat chat?\n\nData transaksi tetap aman.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt("user_id");
+      if (userId == null) {
+        throw Exception("User session not found");
+      }
+
+      await ApiService.clearChats(userId);
+
+      if (!mounted) return;
+
+      setState(() {
+        _typing = false;
+        _messages
+          ..clear()
+          ..add({
+            'text': _initialGreeting,
+            'sender': 'bot',
+          });
+      });
+      _scrollToBottom();
+    } catch (e) {
+      developer.log("CLEAR CHAT ERROR: $e", name: 'ChatScreen');
+    }
   }
 
   @override
@@ -182,7 +239,16 @@ class _ChatScreenState extends State<ChatScreen> {
                     color: primary.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.person, size: 20, color: primary),
+                  child: IconButton(
+                    onPressed: _confirmClearChats,
+                    icon: Icon(
+                      Icons.delete_outline,
+                      size: 20,
+                      color: primary,
+                    ),
+                    padding: EdgeInsets.zero,
+                    splashRadius: 20,
+                  ),
                 ),
               ],
             ),

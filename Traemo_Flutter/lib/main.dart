@@ -3,13 +3,34 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'screens/login_screen.dart';
+import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/main_shell.dart';
 
-void main() {
-  WidgetsFlutterBinding.ensureInitialized(); 
-  initializeDateFormatting('id_ID');
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('id_ID');
+  await NotificationService.initNotification();
+  await _scheduleSavedReminder();
   runApp(const TraemoApp());
+}
+
+Future<void> _scheduleSavedReminder() async {
+  final prefs = await SharedPreferences.getInstance();
+  final enabled = prefs.getBool('reminder_enabled') ?? true;
+  final time = prefs.getString('reminder_time') ?? '20:00';
+  final parts = time.split(':');
+  final hour = parts.isNotEmpty ? int.tryParse(parts[0]) ?? 20 : 20;
+  final minute = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
+
+  if (enabled) {
+    await NotificationService.scheduleDailyReminder(
+      hour: hour,
+      minute: minute,
+    );
+  } else {
+    await NotificationService.cancelReminder();
+  }
 }
 
 class TraemoApp extends StatefulWidget {

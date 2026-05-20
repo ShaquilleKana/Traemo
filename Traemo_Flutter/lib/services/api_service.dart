@@ -109,6 +109,25 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> clearChats(int userId) async {
+    final response = await http.delete(
+      Uri.parse("$baseUrl/chats/clear?user_id=$userId"),
+      headers: {
+        "Accept": "application/json",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      throw Exception("Invalid clear chat response");
+    } else {
+      throw Exception("Failed to clear chats");
+    }
+  }
+
   static Future<Map<String, dynamic>> login(
       String email, String password) async {
     final response = await http.post(
