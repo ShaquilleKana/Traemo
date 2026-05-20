@@ -53,6 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await prefs.setInt('user_id', userId);
       await prefs.setString('user_name', (res['name'] as String?) ?? '');
       await prefs.setString('user_email', email);
+      await prefs.setString('auth_token', (res['token'] as String?) ?? '');
       await prefs.setBool('is_logged_in', true);
 
       if (!mounted) return;

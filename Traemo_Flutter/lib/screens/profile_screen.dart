@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/notification_service.dart';
+import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_switch.dart';
 
@@ -27,6 +28,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   String _userEmail = 'john.doe@example.com';
   bool isReminderEnabled = true;
   TimeOfDay reminderTime = const TimeOfDay(hour: 20, minute: 0);
+  bool _isExporting = false;
 
   @override
   void initState() {
@@ -43,7 +45,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (!mounted) return;
 
     setState(() {
-      _userName = (userName != null && userName.isNotEmpty) ? userName : _userName;
+      _userName =
+          (userName != null && userName.isNotEmpty) ? userName : _userName;
       _userEmail =
           (userEmail != null && userEmail.isNotEmpty) ? userEmail : _userEmail;
     });
@@ -152,11 +155,45 @@ class _ProfileScreenState extends State<ProfileScreen>
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _exportTransactions() async {
+    if (_isExporting) return;
+
+    setState(() => _isExporting = true);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      if (token == null || token.isEmpty) {
+        throw const ApiException('Sesi login berakhir. Silakan login ulang.');
+      }
+
+      final filePath = await ApiService.exportTransactionsToExcel(token);
+
+      if (!mounted) return;
+      _showReminderSnackBar('Export berhasil: $filePath');
+    } catch (e) {
+      if (!mounted) return;
+      _showReminderSnackBar(_buildExportErrorMessage(e));
+    } finally {
+      if (mounted) {
+        setState(() => _isExporting = false);
+      }
+    }
+  }
+
+  String _buildExportErrorMessage(Object error) {
+    if (error is ApiException && error.message.isNotEmpty) {
+      return error.message;
+    }
+
+    return error.toString().replaceFirst('Exception: ', '');
+  }
+
   @override
   Widget build(BuildContext context) {
-    final fg = widget.isDark
-        ? AppColors.darkForeground
-        : AppColors.lightForeground;
+    final fg =
+        widget.isDark ? AppColors.darkForeground : AppColors.lightForeground;
     final muted = widget.isDark
         ? AppColors.darkMutedForeground
         : AppColors.lightMutedForeground;
@@ -169,9 +206,8 @@ class _ProfileScreenState extends State<ProfileScreen>
         : AppColors.lightPrimaryForeground;
     final secondary =
         widget.isDark ? AppColors.darkSecondary : AppColors.lightSecondary;
-    final destructive = widget.isDark
-        ? AppColors.darkDestructive
-        : AppColors.lightDestructive;
+    final destructive =
+        widget.isDark ? AppColors.darkDestructive : AppColors.lightDestructive;
     final onDestructive = widget.isDark
         ? AppColors.darkDestructiveForeground
         : AppColors.lightDestructiveForeground;
@@ -180,7 +216,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       (icon: Icons.settings_outlined, label: 'Settings'),
       (icon: Icons.notifications_outlined, label: 'Notifications'),
       (icon: Icons.lock_outline, label: 'Privacy & Security'),
-      (icon: Icons.help_outline, label: 'Help & Support'),
+      (icon: Icons.file_download_outlined, label: 'Export to Excel'),
     ];
 
     return ColoredBox(
@@ -290,7 +326,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                     children: [
                       Text(
                         'Dark Mode',
-                        style: TextStyle(fontWeight: FontWeight.w500, color: fg),
+                        style:
+                            TextStyle(fontWeight: FontWeight.w500, color: fg),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -437,7 +474,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                 color: card,
                 borderRadius: BorderRadius.circular(16),
                 child: InkWell(
-                  onTap: () {},
+                  onTap: item.label == 'Export to Excel' && !_isExporting
+                      ? _exportTransactions
+                      : null,
                   borderRadius: BorderRadius.circular(16),
                   child: Container(
                     padding: const EdgeInsets.all(16),
@@ -454,13 +493,24 @@ class _ProfileScreenState extends State<ProfileScreen>
                             color: secondary,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Icon(item.icon, size: 20, color: fg),
+                          child: item.label == 'Export to Excel' && _isExporting
+                              ? SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor:
+                                        AlwaysStoppedAnimation<Color>(fg),
+                                  ),
+                                )
+                              : Icon(item.icon, size: 20, color: fg),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             item.label,
-                            style: TextStyle(fontWeight: FontWeight.w500, color: fg),
+                            style: TextStyle(
+                                fontWeight: FontWeight.w500, color: fg),
                           ),
                         ),
                         Icon(Icons.arrow_forward, size: 20, color: muted),

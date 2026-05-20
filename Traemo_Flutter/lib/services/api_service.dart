@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:io';
 import 'package:http/http.dart' as http;
 
 class ApiException implements Exception {
@@ -64,6 +65,88 @@ class ApiService {
     }
   }
 
+  static Future<String> exportTransactionsToExcel(String token) async {
+    final response = await http.get(
+      Uri.parse("$baseUrl/transactions/export/excel"),
+      headers: {
+        "Accept":
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json",
+        "Authorization": "Bearer $token",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final fileName = _extractDownloadFileName(response.headers) ??
+          _buildExportFileName(DateTime.now());
+      final directory = await _resolveDownloadDirectory();
+      final file = File('${directory.path}${Platform.pathSeparator}$fileName');
+      try {
+        await file.writeAsBytes(response.bodyBytes, flush: true);
+        return file.path;
+      } on FileSystemException {
+        final fallbackDirectory = await _resolveFallbackDirectory();
+        final fallbackFile = File(
+          '${fallbackDirectory.path}${Platform.pathSeparator}$fileName',
+        );
+        await fallbackFile.writeAsBytes(response.bodyBytes, flush: true);
+        return fallbackFile.path;
+      }
+    }
+
+    String message = "Gagal export transaksi";
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic> &&
+          decoded["message"] is String &&
+          (decoded["message"] as String).isNotEmpty) {
+        message = decoded["message"] as String;
+      }
+    } on FormatException {
+      if (response.statusCode == 401) {
+        message = "Sesi login berakhir. Silakan login ulang.";
+      }
+    }
+
+    throw ApiException(message);
+  }
+
+  static String _buildExportFileName(DateTime date) {
+    final year = date.year.toString().padLeft(4, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return 'traemo_transactions_${year}_${month}_$day.xlsx';
+  }
+
+  static String? _extractDownloadFileName(Map<String, String> headers) {
+    final disposition = headers['content-disposition'];
+    if (disposition == null || disposition.isEmpty) return null;
+
+    final fileNameMatch = RegExp("filename\\*?=(?:UTF-8'')?\"?([^\";]+)\"?")
+        .firstMatch(disposition);
+    return fileNameMatch?.group(1);
+  }
+
+  static Future<Directory> _resolveDownloadDirectory() async {
+    if (Platform.isAndroid) {
+      final downloads = Directory('/storage/emulated/0/Download');
+      if (await downloads.exists()) {
+        return downloads;
+      }
+    }
+
+    return _resolveFallbackDirectory();
+  }
+
+  static Future<Directory> _resolveFallbackDirectory() async {
+    final fallback = Directory(
+      '${Directory.systemTemp.path}${Platform.pathSeparator}Traemo',
+    );
+    if (!await fallback.exists()) {
+      await fallback.create(recursive: true);
+    }
+    return fallback;
+  }
+
   static Future<Map<String, dynamic>> getDashboardSummary(int userId) async {
     final response = await http.get(
       Uri.parse("$baseUrl/dashboard-summary?user_id=$userId"),
@@ -96,7 +179,8 @@ class ApiService {
       },
     );
 
-    developer.log("CHAT RESPONSE: ${response.body}", name: 'ApiService.getChats');
+    developer.log("CHAT RESPONSE: ${response.body}",
+        name: 'ApiService.getChats');
 
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);
