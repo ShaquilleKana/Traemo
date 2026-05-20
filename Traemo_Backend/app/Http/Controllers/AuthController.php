@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
@@ -22,10 +23,14 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
+        $token = Str::random(80);
+        $user->forceFill(['remember_token' => $token])->save();
+
         return response()->json([
             'message' => 'Register berhasil',
             'user_id' => $user->id,
             'name' => $user->name,
+            'token' => $token,
         ]);
     }
 
@@ -39,10 +44,14 @@ class AuthController extends Controller
             ], 401);
         }
 
+        $token = Str::random(80);
+        $user->forceFill(['remember_token' => $token])->save();
+
         return response()->json([
             'message' => 'Login berhasil',
             'user_id' => $user->id,
-            'name' => $user->name
+            'name' => $user->name,
+            'token' => $token,
         ]);
     }
 }
