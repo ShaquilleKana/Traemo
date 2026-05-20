@@ -15,6 +15,7 @@ Route::get('/gemini-test', [ChatController::class, 'geminiTest']);
 Route::get('/transactions', [TransactionController::class, 'index']);
 Route::get('/transactions/export/excel', [TransactionExportController::class, 'excel'])
     ->middleware('api.token');
-Route::get('/dashboard-summary', [DashboardController::class, 'summary']);
+Route::get('/dashboard-summary', [DashboardController::class, 'summary'])
+    ->middleware('api.token');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
