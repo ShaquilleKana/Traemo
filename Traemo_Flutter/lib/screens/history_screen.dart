@@ -3,6 +3,8 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/constants/app_messages.dart';
+import '../core/widgets/app_notifier.dart';
 import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/formatters.dart';
@@ -11,6 +13,7 @@ class HistoryTransaction {
   const HistoryTransaction({
     required this.id,
     required this.category,
+    required this.description,
     required this.amount,
     required this.type,
     required this.date,
@@ -19,6 +22,7 @@ class HistoryTransaction {
 
   final String id;
   final String category;
+  final String description;
   final int amount;
   final String type;
   final DateTime date;
@@ -88,6 +92,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
       });
     } catch (e) {
       developer.log("LOAD TRANSACTION ERROR: $e", name: 'HistoryScreen');
+      if (mounted) {
+        AppNotifier.showError(
+          context,
+          message: AppMessages.historyLoadFailed,
+        );
+      }
     } finally {
       _isLoading = false;
     }
@@ -95,16 +105,46 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   HistoryTransaction _fromJson(Map<String, dynamic> transaction) {
     final rawDate = transaction['created_at'] ?? transaction['tanggal'];
-    final parsedDate = DateTime.tryParse(rawDate?.toString() ?? '');
+    final parsedDate = DateTime.tryParse(rawDate?.toString() ?? '')?.toLocal();
+    final category = _categoryNameFrom(transaction);
+    final amount = _amountFrom(transaction);
+    final description = transaction['description']?.toString() ??
+        transaction['keterangan']?.toString() ??
+        category;
 
     return HistoryTransaction(
       id: transaction['id'].toString(),
-      category: transaction['kategori']?.toString() ?? '-',
-      amount: int.tryParse(transaction['jumlah'].toString()) ?? 0,
-      type: transaction['tipe']?.toString() ?? 'expense',
+      category: category,
+      description: description.trim().isEmpty ? '-' : description,
+      amount: amount,
+      type: transaction['type']?.toString() ??
+          transaction['tipe']?.toString() ??
+          'expense',
       date: parsedDate ?? DateTime.now(),
-      icon: _iconNameForCategory(transaction['kategori']?.toString() ?? ''),
+      icon: _iconNameForCategory(category),
     );
+  }
+
+  String _categoryNameFrom(Map<String, dynamic> transaction) {
+    final category = transaction['category'];
+    if (category is Map<String, dynamic>) {
+      final name = category['name']?.toString();
+      if (name != null && name.trim().isNotEmpty) return name;
+    }
+
+    final legacyCategory = transaction['kategori']?.toString();
+    if (legacyCategory != null && legacyCategory.trim().isNotEmpty) {
+      return legacyCategory;
+    }
+
+    return '-';
+  }
+
+  int _amountFrom(Map<String, dynamic> transaction) {
+    final rawAmount = transaction['amount'] ?? transaction['jumlah'];
+    if (rawAmount is num) return rawAmount.toInt();
+
+    return int.tryParse(rawAmount?.toString() ?? '') ?? 0;
   }
 
   String _iconNameForCategory(String category) {
@@ -230,7 +270,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    t.category,
+                                    t.description,
                                     style: TextStyle(
                                       fontWeight: FontWeight.w500,
                                       color: fg,
@@ -238,8 +278,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    formatTimeId(t.date),
-                                    style: TextStyle(fontSize: 12, color: muted),
+                                    '${t.category} - ${formatTimeId(t.date)}',
+                                    style:
+                                        TextStyle(fontSize: 12, color: muted),
                                   ),
                                 ],
                               ),

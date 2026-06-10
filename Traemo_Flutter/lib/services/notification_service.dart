@@ -42,7 +42,7 @@ class NotificationService {
     await _notifications.zonedSchedule(
       _reminderId,
       'Traemo',
-      '💸 Jangan lupa catat transaksi hari ini',
+      'Jangan lupa catat transaksi hari ini',
       _nextInstanceOfTime(hour: hour, minute: minute),
       const NotificationDetails(
         android: AndroidNotificationDetails(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/constants/app_messages.dart';
+import '../core/widgets/app_notifier.dart';
 import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 import 'register_screen.dart';
@@ -31,8 +33,9 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Email dan password wajib diisi')),
+      AppNotifier.showWarning(
+        context,
+        message: AppMessages.incompleteForm,
       );
       return;
     }
@@ -57,12 +60,16 @@ class _LoginScreenState extends State<LoginScreen> {
       await prefs.setBool('is_logged_in', true);
 
       if (!mounted) return;
+      AppNotifier.showSuccess(
+        context,
+        message: AppMessages.loginSuccess,
+      );
       widget.onLogin();
     } catch (e) {
       if (!mounted) return;
-      final message = _buildErrorMessage(e);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
+      AppNotifier.showError(
+        context,
+        message: _buildErrorMessage(e),
       );
     } finally {
       if (mounted) {
@@ -72,18 +79,19 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String _buildErrorMessage(Object error) {
-    if (error is ApiException && error.message.isNotEmpty) {
-      return error.message;
+    if (error is ApiException) {
+      if (_isServerError(error.message)) return AppMessages.serverError;
+      return AppMessages.loginFailed;
     }
 
-    final rawMessage = error.toString();
-    if (rawMessage.isEmpty) {
-      return 'Server error';
-    }
+    return AppMessages.apiConnectionFailed;
+  }
 
-    return rawMessage
-        .replaceFirst('Exception: ', '')
-        .replaceFirst('Unhandled Exception: ', '');
+  bool _isServerError(String message) {
+    final normalized = message.toLowerCase();
+    return normalized.contains('server') ||
+        normalized.contains('invalid response') ||
+        normalized.contains('status 5');
   }
 
   @override

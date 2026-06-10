@@ -4,6 +4,8 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/constants/app_messages.dart';
+import '../core/widgets/app_notifier.dart';
 import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 
@@ -89,7 +91,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _handleSend([String? text]) async {
     final messageText = text ?? _input.text.trim();
-    if (messageText.isEmpty) return;
+    if (messageText.isEmpty) {
+      AppNotifier.showWarning(
+        context,
+        message: AppMessages.emptyInput,
+      );
+      return;
+    }
 
     setState(() {
       _messages.add({
@@ -101,7 +109,7 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     _scrollToBottom();
 
-    String botResponse = 'Terjadi kesalahan koneksi';
+    String botResponse = AppMessages.apiConnectionFailed;
 
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -115,8 +123,15 @@ class _ChatScreenState extends State<ChatScreen> {
       if (responseMessage is String && responseMessage.trim().isNotEmpty) {
         botResponse = responseMessage;
       }
-    } catch (_) {
-      botResponse = 'Terjadi kesalahan koneksi';
+    } catch (e) {
+      developer.log("SEND CHAT ERROR: $e", name: 'ChatScreen');
+      botResponse = AppMessages.apiConnectionFailed;
+      if (mounted) {
+        AppNotifier.showError(
+          context,
+          message: AppMessages.apiConnectionFailed,
+        );
+      }
     }
 
     if (!mounted) return;
@@ -175,8 +190,17 @@ class _ChatScreenState extends State<ChatScreen> {
           });
       });
       _scrollToBottom();
+      AppNotifier.showSuccess(
+        context,
+        message: AppMessages.clearChatSuccess,
+      );
     } catch (e) {
       developer.log("CLEAR CHAT ERROR: $e", name: 'ChatScreen');
+      if (!mounted) return;
+      AppNotifier.showError(
+        context,
+        message: AppMessages.serverError,
+      );
     }
   }
 

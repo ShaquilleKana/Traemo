@@ -4,6 +4,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/constants/app_messages.dart';
+import '../core/widgets/app_notifier.dart';
 import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/formatters.dart';
@@ -98,6 +100,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       });
     } catch (e) {
       developer.log("DASHBOARD ERROR: $e", name: 'DashboardScreen');
+      if (mounted) {
+        AppNotifier.showError(
+          context,
+          message: AppMessages.dashboardLoadFailed,
+        );
+      }
     } finally {
       _isLoading = false;
     }
@@ -238,20 +246,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.north_east,
-                          size: 16, color: onPrimary.withValues(alpha: 0.8)),
-                      const SizedBox(width: 4),
-                      Text(
-                        '+12% from last week',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: onPrimary.withValues(alpha: 0.8),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),

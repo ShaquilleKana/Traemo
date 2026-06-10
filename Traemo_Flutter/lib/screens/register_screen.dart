@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/constants/app_messages.dart';
+import '../core/widgets/app_notifier.dart';
 import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 
@@ -14,13 +16,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _passwordConfirmationController =
+      TextEditingController();
   bool _isLoading = false;
+  String? _nameError;
+  String? _emailError;
+  String? _passwordError;
+  String? _passwordConfirmationError;
 
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _passwordConfirmationController.dispose();
     super.dispose();
   }
 
@@ -28,10 +37,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
+    final passwordConfirmation = _passwordConfirmationController.text;
 
-    if (name.isEmpty || email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Semua field wajib diisi')),
+    final validationMessage = _validateRegisterForm(
+      name: name,
+      email: email,
+      password: password,
+      passwordConfirmation: passwordConfirmation,
+    );
+
+    if (validationMessage != null) {
+      AppNotifier.showWarning(
+        context,
+        message: validationMessage,
       );
       return;
     }
@@ -39,18 +57,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final res = await ApiService.register(name, email, password);
+      await ApiService.register(name, email, password);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text((res['message'] as String?) ?? 'Register berhasil')),
+      AppNotifier.showSuccess(
+        context,
+        message: AppMessages.registerSuccess,
       );
 
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_buildErrorMessage(e))),
+      _applyApiValidationErrors(e);
+      AppNotifier.showError(
+        context,
+        message: _buildErrorMessage(e),
       );
     } finally {
       if (mounted) {
@@ -60,18 +81,108 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   String _buildErrorMessage(Object error) {
-    if (error is ApiException && error.message.isNotEmpty) {
-      return error.message;
+    if (error is ApiException && _isEmailAlreadyUsed(error.message)) {
+      return AppMessages.emailAlreadyUsed;
     }
 
-    final rawMessage = error.toString();
-    if (rawMessage.isEmpty) {
-      return 'Server error';
+    if (error is ApiException && _isServerError(error.message)) {
+      return AppMessages.serverError;
     }
 
-    return rawMessage
-        .replaceFirst('Exception: ', '')
-        .replaceFirst('Unhandled Exception: ', '');
+    return AppMessages.registerFailed;
+  }
+
+  bool _isServerError(String message) {
+    final normalized = message.toLowerCase();
+    return normalized.contains('server') ||
+        normalized.contains('invalid response') ||
+        normalized.contains('status 5');
+  }
+
+  String? _validateRegisterForm({
+    required String name,
+    required String email,
+    required String password,
+    required String passwordConfirmation,
+  }) {
+    final nextNameError = name.isEmpty ? AppMessages.nameRequired : null;
+    final nextEmailError = email.isEmpty
+        ? AppMessages.incompleteForm
+        : _isValidEmail(email)
+            ? null
+            : AppMessages.invalidEmail;
+    final nextPasswordError = password.isEmpty
+        ? AppMessages.incompleteForm
+        : password.length < 8
+            ? AppMessages.passwordTooShort
+            : null;
+    final nextPasswordConfirmationError = passwordConfirmation.isEmpty
+        ? AppMessages.incompleteForm
+        : passwordConfirmation != password
+            ? AppMessages.passwordConfirmationMismatch
+            : null;
+
+    final errors = [
+      nextNameError,
+      nextEmailError,
+      nextPasswordError,
+      nextPasswordConfirmationError,
+    ].whereType<String>().toList();
+
+    setState(() {
+      _nameError = nextNameError;
+      _emailError = nextEmailError;
+      _passwordError = nextPasswordError;
+      _passwordConfirmationError = nextPasswordConfirmationError;
+    });
+
+    if (errors.isEmpty) return null;
+    if (errors.length > 1) return AppMessages.validationReview;
+    return errors.first;
+  }
+
+  void _clearFieldError(String field) {
+    if (_nameError == null &&
+        _emailError == null &&
+        _passwordError == null &&
+        _passwordConfirmationError == null) {
+      return;
+    }
+
+    setState(() {
+      switch (field) {
+        case 'name':
+          _nameError = null;
+        case 'email':
+          _emailError = null;
+        case 'password':
+          _passwordError = null;
+          _passwordConfirmationError = null;
+        case 'password_confirmation':
+          _passwordConfirmationError = null;
+      }
+    });
+  }
+
+  void _applyApiValidationErrors(Object error) {
+    if (error is! ApiException || !_isEmailAlreadyUsed(error.message)) return;
+
+    setState(() {
+      _emailError = AppMessages.emailAlreadyUsed;
+    });
+  }
+
+  bool _isValidEmail(String value) {
+    return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value);
+  }
+
+  bool _isEmailAlreadyUsed(String message) {
+    final normalized = message.toLowerCase();
+    return normalized.contains('email') &&
+        (normalized.contains('terdaftar') ||
+            normalized.contains('already') ||
+            normalized.contains('exists') ||
+            normalized.contains('taken'));
   }
 
   @override
@@ -175,8 +286,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               TextField(
                                 controller: _nameController,
                                 enabled: !_isLoading,
+                                onChanged: (_) => _clearFieldError('name'),
                                 decoration: InputDecoration(
                                   hintText: 'Your name',
+                                  errorText: _nameError,
                                   hintStyle: TextStyle(color: muted),
                                   filled: true,
                                   fillColor: card,
@@ -207,8 +320,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 controller: _emailController,
                                 keyboardType: TextInputType.emailAddress,
                                 enabled: !_isLoading,
+                                onChanged: (_) => _clearFieldError('email'),
                                 decoration: InputDecoration(
                                   hintText: 'you@example.com',
+                                  errorText: _emailError,
                                   hintStyle: TextStyle(color: muted),
                                   filled: true,
                                   fillColor: card,
@@ -239,9 +354,48 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 controller: _passwordController,
                                 obscureText: true,
                                 enabled: !_isLoading,
+                                onChanged: (_) => _clearFieldError('password'),
                                 onSubmitted: (_) => _handleRegister(),
                                 decoration: InputDecoration(
                                   hintText: 'Enter your password',
+                                  errorText: _passwordError,
+                                  hintStyle: TextStyle(color: muted),
+                                  filled: true,
+                                  fillColor: card,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide(color: border),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide(color: border),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Confirm Password',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: fg.withValues(alpha: 0.8),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _passwordConfirmationController,
+                                obscureText: true,
+                                enabled: !_isLoading,
+                                onChanged: (_) => _clearFieldError(
+                                  'password_confirmation',
+                                ),
+                                onSubmitted: (_) => _handleRegister(),
+                                decoration: InputDecoration(
+                                  hintText: 'Confirm your password',
+                                  errorText: _passwordConfirmationError,
                                   hintStyle: TextStyle(color: muted),
                                   filled: true,
                                   fillColor: card,
@@ -291,15 +445,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               const SizedBox(height: 16),
                               Text.rich(
                                 TextSpan(
-                                  style:
-                                      TextStyle(fontSize: 14, color: muted),
+                                  style: TextStyle(fontSize: 14, color: muted),
                                   children: [
                                     const TextSpan(
                                       text: 'Already have an account? ',
                                     ),
                                     WidgetSpan(
-                                      alignment:
-                                          PlaceholderAlignment.baseline,
+                                      alignment: PlaceholderAlignment.baseline,
                                       baseline: TextBaseline.alphabetic,
                                       child: GestureDetector(
                                         onTap: _isLoading

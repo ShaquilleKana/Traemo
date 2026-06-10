@@ -1,6 +1,11 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/constants/app_messages.dart';
+import '../core/widgets/app_dialogs.dart';
+import '../core/widgets/app_notifier.dart';
 import '../services/notification_service.dart';
 import '../services/api_service.dart';
 import '../theme/app_colors.dart';
@@ -88,12 +93,19 @@ class _ProfileScreenState extends State<ProfileScreen>
         hour: reminderTime.hour,
         minute: reminderTime.minute,
       );
-      _showReminderSnackBar(
-        'Reminder aktif setiap pukul ${_formatReminderTime(reminderTime)}',
+      if (!mounted) return;
+      AppNotifier.showInfo(
+        context,
+        message:
+            '${AppMessages.reminderEnabled} ${_formatReminderTime(reminderTime)}',
       );
     } else {
       await NotificationService.cancelReminder();
-      _showReminderSnackBar('Reminder dinonaktifkan');
+      if (!mounted) return;
+      AppNotifier.showInfo(
+        context,
+        message: AppMessages.reminderDisabled,
+      );
     }
   }
 
@@ -119,8 +131,10 @@ class _ProfileScreenState extends State<ProfileScreen>
       hour: picked.hour,
       minute: picked.minute,
     );
-    _showReminderSnackBar(
-      'Reminder aktif setiap pukul ${_formatReminderTime(picked)}',
+    if (!mounted) return;
+    AppNotifier.showInfo(
+      context,
+      message: '${AppMessages.reminderEnabled} ${_formatReminderTime(picked)}',
     );
   }
 
@@ -147,14 +161,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     return '$hour:$minute';
   }
 
-  void _showReminderSnackBar(String message) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
   Future<void> _exportTransactions() async {
     if (_isExporting) return;
 
@@ -171,10 +177,26 @@ class _ProfileScreenState extends State<ProfileScreen>
       final filePath = await ApiService.exportTransactionsToExcel(token);
 
       if (!mounted) return;
-      _showReminderSnackBar('Export berhasil: $filePath');
+      developer.log('EXPORTED TRANSACTIONS TO: $filePath',
+          name: 'ProfileScreen');
+      AppNotifier.showSuccess(
+        context,
+        message: AppMessages.exportSuccess,
+      );
     } catch (e) {
       if (!mounted) return;
-      _showReminderSnackBar(_buildExportErrorMessage(e));
+      final message = _buildExportErrorMessage(e);
+      if (message == AppMessages.noDataToExport) {
+        AppNotifier.showWarning(
+          context,
+          message: message,
+        );
+      } else {
+        AppNotifier.showError(
+          context,
+          message: message,
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isExporting = false);
@@ -184,10 +206,32 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   String _buildExportErrorMessage(Object error) {
     if (error is ApiException && error.message.isNotEmpty) {
-      return error.message;
+      final normalized = error.message.toLowerCase();
+      if (normalized.contains('belum') ||
+          normalized.contains('tidak ada') ||
+          normalized.contains('no data')) {
+        return AppMessages.noDataToExport;
+      }
+      if (normalized.contains('server')) {
+        return AppMessages.serverError;
+      }
     }
 
-    return error.toString().replaceFirst('Exception: ', '');
+    return AppMessages.exportFailed;
+  }
+
+  Future<void> _confirmLogout() async {
+    final confirmed = await AppDialogs.confirm(
+      context,
+      title: AppMessages.logoutDialogTitle,
+      message: AppMessages.logoutDialogMessage,
+      cancelLabel: AppMessages.cancel,
+      confirmLabel: AppMessages.logout,
+      destructive: true,
+    );
+
+    if (!confirmed || !mounted) return;
+    widget.onLogout();
   }
 
   @override
@@ -524,7 +568,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           SizedBox(
             height: 48,
             child: ElevatedButton(
-              onPressed: widget.onLogout,
+              onPressed: _confirmLogout,
               style: ElevatedButton.styleFrom(
                 backgroundColor: widget.isDark
                     ? destructive.withValues(alpha: 0.6)

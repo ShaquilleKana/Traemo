@@ -11,7 +11,8 @@ class TransactionController extends Controller
     {
         $userId = $request->user_id;
 
-        $transactions = Transaction::where('user_id', $userId)
+        $transactions = Transaction::with('category')
+            ->where('user_id', $userId)
             ->orderBy('created_at', 'desc')
             ->get();
 

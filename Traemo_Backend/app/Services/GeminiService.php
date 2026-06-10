@@ -10,7 +10,7 @@ use Throwable;
 
 class GeminiService
 {
-    private const MODEL = 'gemini-2.5-flash-lite';
+    private const MODEL = 'gemini-3.1-flash-lite';
 
     public function generate(string $message): string
     {

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'core/constants/app_messages.dart';
+import 'core/widgets/app_notifier.dart';
 import 'screens/login_screen.dart';
 import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
@@ -69,7 +71,8 @@ class _TraemoAppState extends State<TraemoApp> {
   }
 
   void _toggleTheme() {
-    final next = _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    final next =
+        _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
     setState(() => _themeMode = next);
     _persistTheme(next);
   }
@@ -81,6 +84,10 @@ class _TraemoAppState extends State<TraemoApp> {
     await prefs.clear();
 
     if (!mounted) return;
+    AppNotifier.showSuccess(
+      context,
+      message: AppMessages.logoutSuccess,
+    );
     setState(() => _loggedIn = false);
   }
 
@@ -105,6 +112,7 @@ class _TraemoAppState extends State<TraemoApp> {
     return MaterialApp(
       title: 'Traemo',
       debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: AppNotifier.messengerKey,
       theme: light,
       darkTheme: dark,
       themeMode: _themeMode,
