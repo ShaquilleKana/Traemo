@@ -27,7 +27,7 @@ class ChatController extends Controller
     ) {
         $this->authenticateCurrentRequest($request);
 
-        $userId = auth()->id() ?? $request->user_id;
+        $userId = Auth::id() ?? $request->user_id;
 
         $message = strtolower(trim($request->message));
 
@@ -336,7 +336,7 @@ MESSAGE;
 
     private function authenticateCurrentRequest(Request $request): void
     {
-        if (auth()->check() || !$request->filled('user_id')) {
+        if (Auth::check() || !$request->filled('user_id')) {
             return;
         }
 
