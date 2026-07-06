@@ -20,19 +20,16 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<Map<String, String>> _messages = [];
   final TextEditingController _input = TextEditingController();
   final ScrollController _scroll = ScrollController();
+  final List<String> _categories = [];
   bool _typing = false;
   static const _initialGreeting = 'Halo 👋\nSilakan catat transaksi kamu.';
 
-  static const _quickActions = <({String label, String value})>[
-    (label: 'makan 10k', value: 'makan 10000'),
-    (label: 'bensin 20k', value: 'bensin 20000'),
-    (label: 'gaji 1jt', value: 'gaji 1000000'),
-  ];
 
   @override
   void initState() {
     super.initState();
     _loadChats();
+    _loadCategories();
   }
 
   @override
@@ -89,6 +86,34 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _loadCategories() async {
+    try {
+      final categories = await ApiService.getTransactionCategories();
+      if (!mounted) return;
+
+      setState(() {
+        _categories
+          ..clear()
+          ..addAll(
+            categories
+                .map((category) {
+                  if (category is! Map) return '';
+                  return category['name']?.toString().trim() ?? '';
+                })
+                .where((name) => name.isNotEmpty)
+                .toSet(),
+          );
+      });
+    } catch (e) {
+      developer.log("LOAD CATEGORY ERROR: $e", name: 'ChatScreen');
+    }
+  }
+
+  void _selectCategory(String category) {
+    final currentText = _input.text.trim();
+    _input.text = currentText.isEmpty ? category : '$currentText $category';
+    _input.selection = TextSelection.collapsed(offset: _input.text.length);
+  }
   Future<void> _handleSend([String? text]) async {
     final messageText = text ?? _input.text.trim();
     if (messageText.isEmpty) {
@@ -418,43 +443,40 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             child: Column(
               children: [
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (final a in _quickActions) ...[
-                        Material(
-                          color: secondary,
-                          borderRadius: BorderRadius.circular(999),
-                          child: InkWell(
-                            onTap: () {
-                              _input.text = a.value;
-                              _input.selection = TextSelection.fromPosition(
-                                TextPosition(offset: _input.text.length),
-                              );
-                            },
+                if (_categories.isNotEmpty) ...[
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (final category in _categories) ...[
+                          Material(
+                            color: secondary,
                             borderRadius: BorderRadius.circular(999),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              child: Text(
-                                a.label,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: secondaryFg,
+                            child: InkWell(
+                              onTap: () => _selectCategory(category),
+                              borderRadius: BorderRadius.circular(999),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                child: Text(
+                                  category,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: secondaryFg,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
+                          const SizedBox(width: 8),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
+                  const SizedBox(height: 12),
+                ],
                 Row(
                   children: [
                     Expanded(

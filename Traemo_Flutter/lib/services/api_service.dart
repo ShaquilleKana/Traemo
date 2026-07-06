@@ -65,6 +65,24 @@ class ApiService {
     }
   }
 
+  static Future<List<dynamic>> getTransactionCategories() async {
+    final response = await http.get(
+      Uri.parse("$baseUrl/transaction-categories"),
+      headers: {
+        "Accept": "application/json",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is List<dynamic>) {
+        return decoded;
+      }
+      throw Exception("Invalid transaction category response");
+    }
+
+    throw Exception("Failed to load transaction categories");
+  }
   static Future<String> exportTransactionsToExcel(String token) async {
     final response = await http.get(
       Uri.parse("$baseUrl/transactions/export/excel"),
@@ -254,6 +272,34 @@ class ApiService {
     final message = data["message"];
     if (message is String && message.isNotEmpty) {
       throw ApiException(message);
+    }
+
+    throw ApiException("Request failed with status ${response.statusCode}");
+  }
+
+  static Future<void> logout(String token) async {
+    final response = await http.post(
+      Uri.parse("$baseUrl/logout"),
+      headers: {
+        "Accept": "application/json",
+        "Authorization": "Bearer $token",
+      },
+    );
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return;
+    }
+
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final message = decoded["message"];
+        if (message is String && message.isNotEmpty) {
+          throw ApiException(message);
+        }
+      }
+    } on FormatException {
+      throw const ApiException("Server error");
     }
 
     throw ApiException("Request failed with status ${response.statusCode}");

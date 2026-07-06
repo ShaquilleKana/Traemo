@@ -442,7 +442,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               card: card,
               foreground: fg,
               muted: muted,
-              totalExpense: totalExpense,
               distribution: expenseCategoryDistribution,
               colors: _neonPieColors,
             ),
@@ -469,7 +468,6 @@ class _ExpenseDistributionCard extends StatelessWidget {
     required this.card,
     required this.foreground,
     required this.muted,
-    required this.totalExpense,
     required this.distribution,
     required this.colors,
   });
@@ -478,12 +476,15 @@ class _ExpenseDistributionCard extends StatelessWidget {
   final Color card;
   final Color foreground;
   final Color muted;
-  final num totalExpense;
   final List<_ExpenseCategoryDistribution> distribution;
   final List<Color> colors;
 
   @override
   Widget build(BuildContext context) {
+    final totalExpense = distribution.fold<num>(
+      0,
+      (total, item) => total + item.total,
+    );
     final hasData = distribution.isNotEmpty && totalExpense > 0;
 
     return Container(
@@ -514,7 +515,7 @@ class _ExpenseDistributionCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Based on expense categories',
+            'Based on expense categories from the last month',
             style: TextStyle(fontSize: 12, color: muted),
           ),
           const SizedBox(height: 20),

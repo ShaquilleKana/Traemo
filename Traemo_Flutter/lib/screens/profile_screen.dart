@@ -21,7 +21,7 @@ class ProfileScreen extends StatefulWidget {
 
   final bool isDark;
   final VoidCallback onToggleTheme;
-  final VoidCallback onLogout;
+  final Future<void> Function() onLogout;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -231,7 +231,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
 
     if (!confirmed || !mounted) return;
-    widget.onLogout();
+    await widget.onLogout();
   }
 
   @override

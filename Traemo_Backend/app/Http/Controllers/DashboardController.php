@@ -53,6 +53,7 @@ class DashboardController extends Controller
             )
             ->where('user_id', auth()->id())
             ->where('transaction_categories.type', 'expense')
+            ->where('transactions.created_at', '>=', now()->subMonth())
             ->groupBy('transaction_categories.id', 'transaction_categories.name')
             ->orderByDesc('total')
             ->get()

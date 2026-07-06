@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'core/constants/app_messages.dart';
 import 'core/widgets/app_notifier.dart';
 import 'screens/login_screen.dart';
+import 'services/api_service.dart';
 import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/main_shell.dart';
@@ -79,9 +80,23 @@ class _TraemoAppState extends State<TraemoApp> {
 
   Future<void> _handleLogout() async {
     final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
 
-    // Clear saved auth session so the next app start returns to login.
-    await prefs.clear();
+    if (token != null && token.isNotEmpty) {
+      try {
+        await ApiService.logout(token);
+      } on ApiException {
+        // Local session cleanup still lets the user leave this device.
+      }
+    }
+
+    await Future.wait([
+      prefs.remove('user_id'),
+      prefs.remove('user_name'),
+      prefs.remove('user_email'),
+      prefs.remove('auth_token'),
+      prefs.remove('is_logged_in'),
+    ]);
 
     if (!mounted) return;
     AppNotifier.showSuccess(

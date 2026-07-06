@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
@@ -52,6 +53,19 @@ class AuthController extends Controller
             'user_id' => $user->id,
             'name' => $user->name,
             'token' => $token,
+        ]);
+    }
+
+    public function logout(Request $request)
+    {
+        $user = Auth::user();
+
+        if ($user instanceof User) {
+            $user->forceFill(['remember_token' => null])->save();
+        }
+
+        return response()->json([
+            'message' => 'Logout berhasil',
         ]);
     }
 }

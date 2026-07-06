@@ -16,7 +16,7 @@ class MainShell extends StatefulWidget {
 
   final bool isDark;
   final VoidCallback onToggleTheme;
-  final VoidCallback onLogout;
+  final Future<void> Function() onLogout;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -60,7 +60,8 @@ class _MainShellState extends State<MainShell> {
               child: SafeArea(
                 top: false,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   child: BottomNavigationBar(
                     currentIndex: _index,
                     onTap: (i) => setState(() => _index = i),
